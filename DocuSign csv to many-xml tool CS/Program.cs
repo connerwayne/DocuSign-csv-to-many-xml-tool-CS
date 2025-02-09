@@ -1,8 +1,22 @@
-﻿using System;
+﻿// This monitor is a conversion tool for DocuSign Retrieve index.csv files to create many XML files as the output.
+// The tool monitors a folder for the index.csv file, and when detected, it automatically processes the file.
+// The tool creates an XML file for each row in the index.csv file, with the name of the XML file being the Envelope ID.
+// The tool also logs the creation of the XML files and moves the processed index.csv file to a processed folder.
+// The tool also logs any errors that occur during the processing of the index.csv file and creates a separate error log file called ProcessingErrors.txt.
+// The tool uses a FileSystemWatcher to monitor the input folder for the index.csv file and triggers the processing of the file when it is detected.
+
+// If an index.csv file contains an Envelope ID that already exists in the output folder, the tool will create a new XML file with a suffix of _1, _2, etc., to avoid overwriting existing files.
+// The tool also checks if the output XML file already exists and skips creating the new XML file if it does.
+// the index.csv file is moved to the processed folder with a timestamp appended to the filename once it is processed.
+
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Mail;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Xml.Linq;
 
 class Program
@@ -11,6 +25,13 @@ class Program
     {
         string fileName = duplicateCount > 0 ? $"{envelopeId}_{duplicateCount}.xml" : $"{envelopeId}.xml";
         string filePath = Path.Combine(outputFolder, fileName);
+
+        // Check if the file already exists and skip creating the new XML file if it does
+        if (File.Exists(filePath))
+        {
+            logWriter.WriteLine($"Skipped creating XML file for Envelope ID: {envelopeId}, File Path: {filePath} already exists.");
+            return;
+        }
 
         XElement envelopeElement = new XElement("Envelope");
         for (int i = 0; i < headers.Count; i++)
@@ -24,14 +45,8 @@ class Program
         logWriter.WriteLine($"Created XML file for Envelope ID: {envelopeId}, File Path: {filePath}");
     }
 
-    static void EnsureDirectoriesExist(string inputFilePath, string outputFolder, string loggingFolder, string processedFolder)
+    static void EnsureDirectoriesExist(string inputFolder, string outputFolder, string loggingFolder, string processedFolder)
     {
-        string? inputFolder = Path.GetDirectoryName(inputFilePath);
-        if (inputFolder == null)
-        {
-            throw new ArgumentException("The input file path does not contain a directory.");
-        }
-
         if (!Directory.Exists(inputFolder))
         {
             Directory.CreateDirectory(inputFolder);
@@ -66,30 +81,16 @@ class Program
         }
     }
 
-    static void Main()
+    static void ProcessFile(string inputFilePath, string outputFolder, string loggingFolder, string processedFolder)
     {
-        string inputFilePath = @"C:\DS Retrieve\inputFolder\index.csv";
-        string outputFolder = @"C:\DS Retrieve\outputFolder";
-        string loggingFolder = @"C:\DS Retrieve\Logging";
-        string processedFolder = @"C:\DS Retrieve\processedFolder";
         string logFilePath = Path.Combine(loggingFolder, $"csv-to-many-xml-log-{DateTime.Now:yyyyMMddHHmmss}.txt");
         string errorLogFilePath = Path.Combine(loggingFolder, $"ProcessingErrors-{DateTime.Now:yyyyMMddHHmmss}.txt");
-
-        EnsureDirectoriesExist(inputFilePath, outputFolder, loggingFolder, processedFolder);
 
         using (StreamWriter logWriter = new StreamWriter(logFilePath, true))
         using (StreamWriter errorLogWriter = new StreamWriter(errorLogFilePath, true))
         {
             try
             {
-                while (!File.Exists(inputFilePath))
-                {
-                    Console.WriteLine($"Unable to open file: {inputFilePath}");
-                    Console.WriteLine("Press ENTER to try again from C:\\DS Retrieve\\inputFolder\\index.csv, or enter the correct path for the index.csv file:");
-                    string userInput = Console.ReadLine();
-                    inputFilePath = string.IsNullOrEmpty(userInput) ? @"C:\DS Retrieve\inputFolder\index.csv" : userInput;
-                }
-
                 string[] lines = File.ReadAllLines(inputFilePath);
                 if (lines.Length == 0)
                 {
@@ -161,5 +162,57 @@ class Program
             }
         }
     }
-}
 
+    static void Main()
+    {
+        string inputFolder = @"C:\DS Retrieve\inputFolder";
+        string outputFolder = @"C:\DS Retrieve\outputFolder";
+        string loggingFolder = @"C:\DS Retrieve\Logging";
+        string processedFolder = @"C:\DS Retrieve\processedFolder";
+
+        EnsureDirectoriesExist(inputFolder, outputFolder, loggingFolder, processedFolder);
+
+        FileSystemWatcher watcher = new FileSystemWatcher
+        {
+            Path = inputFolder,
+            Filter = "index.csv",
+            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite
+        };
+
+        watcher.Created += (source, e) =>
+        {
+            Console.WriteLine($"File detected: {e.FullPath}");
+            Task.Run(() => PromptUserAndProcessFile(e.FullPath, outputFolder, loggingFolder, processedFolder));
+        };
+
+        watcher.EnableRaisingEvents = true;
+
+        Console.WriteLine("DocuSign Retrieve Monitor - Listening for DocuSign Retreive index.csv files. Enter 'q' to quit.");
+        while (Console.Read() != 'q') ;
+    }
+
+    static void PromptUserAndProcessFile(string inputFilePath, string outputFolder, string loggingFolder, string processedFolder)
+    {
+        Console.WriteLine($"[{DateTime.Now}] DocuSign Retreive index.csv file detected. Processing in 5 seconds");
+
+        var cts = new CancellationTokenSource();
+        var token = cts.Token;
+
+        Task.Run(() =>
+        {
+            if (Console.ReadKey(true).Key == ConsoleKey.Enter)
+            {
+                cts.Cancel();
+                ProcessFile(inputFilePath, outputFolder, loggingFolder, processedFolder);
+            }
+        }, token);
+
+        Task.Delay(5000).ContinueWith(t =>
+        {
+            if (!token.IsCancellationRequested)
+            {
+                ProcessFile(inputFilePath, outputFolder, loggingFolder, processedFolder);
+            }
+        });
+    }
+}
