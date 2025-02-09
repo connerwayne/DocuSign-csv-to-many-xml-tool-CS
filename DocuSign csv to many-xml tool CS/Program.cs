@@ -10,6 +10,7 @@
 // the index.csv file is moved to the processed folder with a timestamp appended to the filename once it is processed.
 
 
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -158,6 +159,8 @@ class Program
                     string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
                     string processedFilePath = Path.Combine(processedFolder, $"index_{timestamp}.csv");
                     File.Move(inputFilePath, processedFilePath);
+                    Console.WriteLine($"File processed and moved to: {processedFilePath}");
+                    Console.WriteLine("DocuSign Retrieve Monitor - Listening for DocuSign Retreive index.csv file. Enter 'q' to quit.");
                 }
             }
         }
@@ -165,10 +168,10 @@ class Program
 
     static void Main()
     {
-        string inputFolder = @"C:\DS Retrieve\inputFolder";
-        string outputFolder = @"C:\DS Retrieve\outputFolder";
-        string loggingFolder = @"C:\DS Retrieve\Logging";
-        string processedFolder = @"C:\DS Retrieve\processedFolder";
+        string inputFolder = @"C:\DS Retrieve Monitor\inputFolder";
+        string outputFolder = @"C:\DS Retrieve Monitor\outputFolder";
+        string loggingFolder = @"C:\DS Retrieve Monitor\Logging";
+        string processedFolder = @"C:\DS Retrieve Monitor\processedFolder";
 
         EnsureDirectoriesExist(inputFolder, outputFolder, loggingFolder, processedFolder);
 

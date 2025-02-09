@@ -6,6 +6,7 @@
     <RootNamespace>DocuSign_csv_to_many_xml_tool_CS</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+	  <OutputPath>C:\DS Retrieve Monitor\</OutputPath>
   </PropertyGroup>
 
 </Project>
