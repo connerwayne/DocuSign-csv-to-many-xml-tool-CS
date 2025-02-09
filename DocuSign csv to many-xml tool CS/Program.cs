@@ -48,30 +48,18 @@ class Program
         }
     }
 
-    //static void SendEmailNotification(string errorLogFilePath)   // Uncomment this method to enable email notifications /// also look for "static void SendEmailNotification(string errorLogFilePath)" method
-    //{
-    //    try
-    //    {
-    //        MailMessage mail = new MailMessage();
-    //        SmtpClient smtpServer = new SmtpClient("smtp.your-email.com");
+    static void CleanUpLogFiles(string logFilePath, string errorLogFilePath)
+    {
+        if (new FileInfo(logFilePath).Length == 0)
+        {
+            File.Delete(logFilePath);
+        }
 
-    //        mail.From = new MailAddress("your-email@your-domain.com");
-    //        mail.To.Add("recipient-email@domain.com");
-    //        mail.Subject = "Processing Error Notification";
-    //        mail.Body = $"A processing error has occurred. Please check the log file at: {errorLogFilePath}";
-
-    //        smtpServer.Port = 587;
-    //        smtpServer.Credentials = new NetworkCredential("your-email@your-domain.com", "your-email-password");
-    //        smtpServer.EnableSsl = true;
-
-    //        smtpServer.Send(mail);
-    //        Console.WriteLine("Email sent successfully.");
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        Console.WriteLine($"Failed to send email: {ex.Message}");
-    //    }
-    //}
+        if (new FileInfo(errorLogFilePath).Length == 0)
+        {
+            File.Delete(errorLogFilePath);
+        }
+    }
 
     static void Main()
     {
@@ -88,13 +76,12 @@ class Program
         {
             try
             {
-                if (!File.Exists(inputFilePath))
+                while (!File.Exists(inputFilePath))
                 {
-                    string errorMessage = $"Unable to open file: {inputFilePath}";
-                    errorLogWriter.WriteLine($"{DateTime.Now}: {errorMessage}");
-                    errorLogWriter.Flush(); // Ensure the message is written to the file
-                    //SendEmailNotification(errorLogFilePath); // Send email notification --- also look for "static void SendEmailNotification(string errorLogFilePath)" method
-                    throw new FileNotFoundException(errorMessage);
+                    Console.WriteLine($"Unable to open file: {inputFilePath}");
+                    Console.WriteLine("Press ENTER to try again from C:\\DS Retrieve\\inputFolder\\index.csv, or enter the correct path for the index.csv file:");
+                    string userInput = Console.ReadLine();
+                    inputFilePath = string.IsNullOrEmpty(userInput) ? @"C:\DS Retrieve\inputFolder\index.csv" : userInput;
                 }
 
                 string[] lines = File.ReadAllLines(inputFilePath);
@@ -152,7 +139,12 @@ class Program
                 logWriter.WriteLine($"Exception: {ex.Message}");
                 throw;
             }
+            finally
+            {
+                logWriter.Close();
+                errorLogWriter.Close();
+                CleanUpLogFiles(logFilePath, errorLogFilePath);
+            }
         }
     }
 }
-
