@@ -24,7 +24,7 @@ class Program
         logWriter.WriteLine($"Created XML file for Envelope ID: {envelopeId}, File Path: {filePath}");
     }
 
-    static void EnsureDirectoriesExist(string inputFilePath, string outputFolder, string loggingFolder)
+    static void EnsureDirectoriesExist(string inputFilePath, string outputFolder, string loggingFolder, string processedFolder)
     {
         string? inputFolder = Path.GetDirectoryName(inputFilePath);
         if (inputFolder == null)
@@ -46,6 +46,11 @@ class Program
         {
             Directory.CreateDirectory(loggingFolder);
         }
+
+        if (!Directory.Exists(processedFolder))
+        {
+            Directory.CreateDirectory(processedFolder);
+        }
     }
 
     static void CleanUpLogFiles(string logFilePath, string errorLogFilePath)
@@ -66,10 +71,11 @@ class Program
         string inputFilePath = @"C:\DS Retrieve\inputFolder\index.csv";
         string outputFolder = @"C:\DS Retrieve\outputFolder";
         string loggingFolder = @"C:\DS Retrieve\Logging";
+        string processedFolder = @"C:\DS Retrieve\processedFolder";
         string logFilePath = Path.Combine(loggingFolder, $"csv-to-many-xml-log-{DateTime.Now:yyyyMMddHHmmss}.txt");
         string errorLogFilePath = Path.Combine(loggingFolder, $"ProcessingErrors-{DateTime.Now:yyyyMMddHHmmss}.txt");
 
-        EnsureDirectoriesExist(inputFilePath, outputFolder, loggingFolder);
+        EnsureDirectoriesExist(inputFilePath, outputFolder, loggingFolder, processedFolder);
 
         using (StreamWriter logWriter = new StreamWriter(logFilePath, true))
         using (StreamWriter errorLogWriter = new StreamWriter(errorLogFilePath, true))
@@ -144,7 +150,16 @@ class Program
                 logWriter.Close();
                 errorLogWriter.Close();
                 CleanUpLogFiles(logFilePath, errorLogFilePath);
+
+                // Move the index.csv file to the processedFolder with a timestamp
+                if (File.Exists(inputFilePath))
+                {
+                    string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+                    string processedFilePath = Path.Combine(processedFolder, $"index_{timestamp}.csv");
+                    File.Move(inputFilePath, processedFilePath);
+                }
             }
         }
     }
 }
+
