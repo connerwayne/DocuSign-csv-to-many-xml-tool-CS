@@ -21,7 +21,7 @@ class Program
 
     static void Main()
     {
-        string inputFilePath = @"C:\DS Retrieve\DEV\indexDS.csv";
+        string inputFilePath = @"C:\DS Retrieve\inputFolder\index.csv";
         string outputFolder = @"C:\DS Retrieve\outputFolder";
 
         if (!File.Exists(inputFilePath))
