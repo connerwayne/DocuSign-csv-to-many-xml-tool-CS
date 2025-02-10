@@ -23,6 +23,8 @@
 
 //Email and WatchDog methods are not tested as they require a valid email address and SMTP server to send notifications.
 
+// Once the index.csv is processed and xml output files created, the tool moves the output XML files from C:\ DS Retreive Monitor\outputFolder to C:\DS Retreive\Ingest Folder for further processing into other systems.
+
 
 
 using System;
@@ -40,12 +42,23 @@ class Program
     private static readonly TimeSpan healthCheckInterval = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan watchdogTimeout = TimeSpan.FromSeconds(30);
 
-    static void CreateXmlFile(string envelopeId, List<string> rowData, List<string> headers, string outputFolder, int duplicateCount, StreamWriter logWriter)
+    static void CreateXmlFile(string envelopeId, List<string> rowData, List<string> headers, string outputFolder, string ingestFolder, int duplicateCount, StreamWriter logWriter)
     {
         string fileName = duplicateCount > 0 ? $"{envelopeId}_{duplicateCount}.xml" : $"{envelopeId}.xml";
         string filePath = Path.Combine(outputFolder, fileName);
 
-        // Check if the file already exists and skip creating the new XML file if it does
+        // Check if a file with the same first 36 characters of the filename and Envelope ID exists in the ingest folder
+        foreach (var file in Directory.GetFiles(ingestFolder, "*.xml"))
+        {
+            string existingFileName = Path.GetFileNameWithoutExtension(file);
+            if (existingFileName.Length >= 36 && envelopeId.Length >= 36 && existingFileName.Substring(0, 36) == envelopeId.Substring(0, 36))
+            {
+                logWriter.WriteLine($"Skipped creating XML file for Envelope ID: {envelopeId}, matching file already exists in Ingest Folder.");
+                return;
+            }
+        }
+
+        // Check if the file already exists in the output folder and skip creating the new XML file if it does
         if (File.Exists(filePath))
         {
             logWriter.WriteLine($"Skipped creating XML file for Envelope ID: {envelopeId}, File Path: {filePath} already exists.");
@@ -64,26 +77,14 @@ class Program
         logWriter.WriteLine($"Created XML file for Envelope ID: {envelopeId}, File Path: {filePath}");
     }
 
-    static void EnsureDirectoriesExist(string inputFolder, string outputFolder, string loggingFolder, string processedFolder)
+    static void EnsureDirectoriesExist(params string[] directories)
     {
-        if (!Directory.Exists(inputFolder))
+        foreach (var directory in directories)
         {
-            Directory.CreateDirectory(inputFolder);
-        }
-
-        if (!Directory.Exists(outputFolder))
-        {
-            Directory.CreateDirectory(outputFolder);
-        }
-
-        if (!Directory.Exists(loggingFolder))
-        {
-            Directory.CreateDirectory(loggingFolder);
-        }
-
-        if (!Directory.Exists(processedFolder))
-        {
-            Directory.CreateDirectory(processedFolder);
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
         }
     }
 
@@ -100,7 +101,29 @@ class Program
         }
     }
 
-    static void ProcessFile(string inputFilePath, string outputFolder, string loggingFolder, string processedFolder)
+    static void MoveOutputFiles(string outputFolder, string ingestFolder)
+    {
+        EnsureDirectoriesExist(ingestFolder);
+
+        foreach (var file in Directory.GetFiles(outputFolder, "*.xml"))
+        {
+            string fileName = Path.GetFileName(file);
+            string destFile = Path.Combine(ingestFolder, fileName);
+
+            // Check if the file already exists in the ingest folder and delete the new file if it does
+            if (File.Exists(destFile))
+            {
+                File.Delete(file);
+                Console.WriteLine($"Deleted new XML file: {fileName} in Output Folder because it already exists in Ingest Folder.");
+                continue;
+            }
+
+            File.Move(file, destFile);
+            Console.WriteLine($"Moved XML file to: {destFile}");
+        }
+    }
+
+    static void ProcessFile(string inputFilePath, string outputFolder, string loggingFolder, string processedFolder, string ingestFolder)
     {
         string logFilePath = Path.Combine(loggingFolder, $"csv-to-many-xml-log-{DateTime.Now:yyyyMMddHHmmss}.txt");
         string errorLogFilePath = Path.Combine(loggingFolder, $"ProcessingErrors-{DateTime.Now:yyyyMMddHHmmss}.txt");
@@ -151,7 +174,7 @@ class Program
                             envelopeIdCount[envelopeId] = 0;
                         }
 
-                        CreateXmlFile(envelopeId, rowData, headers, outputFolder, envelopeIdCount[envelopeId], logWriter);
+                        CreateXmlFile(envelopeId, rowData, headers, outputFolder, ingestFolder, envelopeIdCount[envelopeId], logWriter);
                     }
                 }
             }
@@ -178,8 +201,11 @@ class Program
                     string processedFilePath = Path.Combine(processedFolder, $"index_{timestamp}.csv");
                     File.Move(inputFilePath, processedFilePath);
                     Console.WriteLine($"File processed and moved to: {processedFilePath}");
-                    Console.WriteLine("DocuSign Retrieve Monitor - Listening for DocuSign Retreive index.csv file. Enter 'q' to quit.");
                 }
+
+                // Move the output XML files to the ingest folder
+                MoveOutputFiles(outputFolder, ingestFolder);
+                Console.WriteLine("DocuSign Retrieve Monitor - Listening for DocuSign Retreive index.csv file. Enter 'q' to quit.");
             }
         }
     }
@@ -190,8 +216,9 @@ class Program
         string outputFolder = @"C:\DS Retrieve Monitor\outputFolder";
         string loggingFolder = @"C:\DS Retrieve Monitor\Logging";
         string processedFolder = @"C:\DS Retrieve Monitor\processedFolder";
+        string ingestFolder = @"C:\DS Retrieve\Ingest Folder";
 
-        EnsureDirectoriesExist(inputFolder, outputFolder, loggingFolder, processedFolder);
+        EnsureDirectoriesExist(inputFolder, outputFolder, loggingFolder, processedFolder, ingestFolder);
 
         FileSystemWatcher watcher = new FileSystemWatcher
         {
@@ -203,7 +230,7 @@ class Program
         watcher.Created += (source, e) =>
         {
             Console.WriteLine($"File detected: {e.FullPath}");
-            Task.Run(() => PromptUserAndProcessFile(e.FullPath, outputFolder, loggingFolder, processedFolder));
+            Task.Run(() => PromptUserAndProcessFile(e.FullPath, outputFolder, loggingFolder, processedFolder, ingestFolder));
         };
 
         watcher.EnableRaisingEvents = true;
@@ -219,7 +246,7 @@ class Program
         }
     }
 
-    static void PromptUserAndProcessFile(string inputFilePath, string outputFolder, string loggingFolder, string processedFolder)
+    static void PromptUserAndProcessFile(string inputFilePath, string outputFolder, string loggingFolder, string processedFolder, string ingestFolder)
     {
         Console.WriteLine($"[{DateTime.Now}] DocuSign Retreive index.csv file detected. Processing in 1 second");
 
@@ -231,7 +258,7 @@ class Program
             if (Console.ReadKey(true).Key == ConsoleKey.Enter)
             {
                 cts.Cancel();
-                ProcessFile(inputFilePath, outputFolder, loggingFolder, processedFolder);
+                ProcessFile(inputFilePath, outputFolder, loggingFolder, processedFolder, ingestFolder);
             }
         }, token);
 
@@ -239,7 +266,7 @@ class Program
         {
             if (!token.IsCancellationRequested)
             {
-                ProcessFile(inputFilePath, outputFolder, loggingFolder, processedFolder);
+                ProcessFile(inputFilePath, outputFolder, loggingFolder, processedFolder, ingestFolder);
             }
         });
     }
@@ -283,4 +310,3 @@ class Program
         }
     }
 }
-
