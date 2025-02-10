@@ -1,5 +1,8 @@
 ﻿// This is the DocuSign Retrieve index.csv monitor. Its a conversion tool that operates in a terminal window for DocuSign Retrieve index.csv files
-// and is used to create many XML files as the output. The tool monitors a folder for the index.csv file, and when detected, it automatically processes the file.
+// and is used to create many XML files as the output.
+// The tool is designed to be run in a terminal window and will continue to monitor the input folder for index.csv files until the user enters 'q' to quit the application.
+
+// The tool monitors a folder for the index.csv file, and when detected, it automatically processes the file.
 // The tool creates an XML file for each row in the index.csv file, with the name of the XML file being the Envelope ID.
 // The tool also logs the creation of the XML files and moves the processed index.csv file to a processed folder.
 // The tool also logs any errors that occur during the processing of the index.csv file and creates a separate error log file called ProcessingErrors.txt.
@@ -8,6 +11,17 @@
 // If an index.csv file contains an Envelope ID that already exists in the output folder, the tool will create a new XML file with a suffix of _1, _2, etc., to avoid overwriting existing files.
 // The tool also checks if the output XML file already exists and skips creating the new XML file if it does.
 // the index.csv file is moved to the processed folder with a timestamp appended to the filename once it is processed.
+
+// The tool also includes a watchdog timer that monitors the health of the application and sends an email notification if the application stops responding.
+// The watchdog timer checks the health of the application every 10 seconds and sends a notification if the application has not responded for 30 seconds.
+// The notification is sent via email using the SmtpClient class to a specified recipient email address.
+// The email contains the message "The DocuSign Retrieve Monitor has stopped responding." and is sent from the specified sender email address.
+// The email credentials are provided in the code, and the SMTP server settings are configured to use SSL on port 587.
+// The notification is logged to the console, indicating whether the notification was sent successfully or if there was an error.
+
+//  The tool also includes a method to clean up log files by deleting empty log files after processing.
+
+//Email and WatchDog methods are not tested as they require a valid email address and SMTP server to send notifications.
 
 
 
