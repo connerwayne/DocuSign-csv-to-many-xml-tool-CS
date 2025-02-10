@@ -1,4 +1,4 @@
-﻿// This monitor is a conversion tool for DocuSign Retrieve index.csv files to create many XML files as the output.
+﻿// This is the DocuSign Retrieve index.csv monitor. Its a conversion tool for DocuSign Retrieve index.csv files to create many XML files as the output.
 // The tool monitors a folder for the index.csv file, and when detected, it automatically processes the file.
 // The tool creates an XML file for each row in the index.csv file, with the name of the XML file being the Envelope ID.
 // The tool also logs the creation of the XML files and moves the processed index.csv file to a processed folder.
