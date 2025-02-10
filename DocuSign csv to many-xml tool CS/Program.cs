@@ -22,6 +22,10 @@ using System.Xml.Linq;
 
 class Program
 {
+    private static DateTime lastHealthCheck = DateTime.Now;
+    private static readonly TimeSpan healthCheckInterval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan watchdogTimeout = TimeSpan.FromSeconds(30);
+
     static void CreateXmlFile(string envelopeId, List<string> rowData, List<string> headers, string outputFolder, int duplicateCount, StreamWriter logWriter)
     {
         string fileName = duplicateCount > 0 ? $"{envelopeId}_{duplicateCount}.xml" : $"{envelopeId}.xml";
@@ -190,13 +194,20 @@ class Program
 
         watcher.EnableRaisingEvents = true;
 
+        // Start the watchdog timer
+        Task.Run(() => WatchdogTimer());
+
         Console.WriteLine("DocuSign Retrieve Monitor - Listening for DocuSign Retreive index.csv files. Enter 'q' to quit.");
-        while (Console.Read() != 'q') ;
+        while (Console.Read() != 'q')
+        {
+            // Update the health check timestamp
+            lastHealthCheck = DateTime.Now;
+        }
     }
 
     static void PromptUserAndProcessFile(string inputFilePath, string outputFolder, string loggingFolder, string processedFolder)
     {
-        Console.WriteLine($"[{DateTime.Now}] DocuSign Retreive index.csv file detected. Processing in 5 seconds");
+        Console.WriteLine($"[{DateTime.Now}] DocuSign Retreive index.csv file detected. Processing in 1 second");
 
         var cts = new CancellationTokenSource();
         var token = cts.Token;
@@ -210,7 +221,7 @@ class Program
             }
         }, token);
 
-        Task.Delay(5000).ContinueWith(t =>
+        Task.Delay(1000).ContinueWith(t =>
         {
             if (!token.IsCancellationRequested)
             {
@@ -218,4 +229,44 @@ class Program
             }
         });
     }
+
+    static void WatchdogTimer()
+    {
+        while (true)
+        {
+            Task.Delay(healthCheckInterval).Wait();
+
+            if (DateTime.Now - lastHealthCheck > watchdogTimeout)
+            {
+                SendNotification("The DocuSign Retrieve Monitor has stopped responding.");
+                break;
+            }
+        }
+    }
+
+    static void SendNotification(string message)
+    {
+        try
+        {
+            MailMessage mail = new MailMessage();
+            SmtpClient smtpServer = new SmtpClient("smtp.your-email.com");
+
+            mail.From = new MailAddress("your-email@your-domain.com");
+            mail.To.Add("recipient-email@domain.com");
+            mail.Subject = "DocuSign Retrieve Monitor Alert";
+            mail.Body = message;
+
+            smtpServer.Port = 587;
+            smtpServer.Credentials = new NetworkCredential("your-email@your-domain.com", "your-email-password");
+            smtpServer.EnableSsl = true;
+
+            smtpServer.Send(mail);
+            Console.WriteLine("Notification sent successfully.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to send notification: {ex.Message}");
+        }
+    }
 }
+
